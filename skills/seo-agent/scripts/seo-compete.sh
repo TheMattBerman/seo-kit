@@ -69,7 +69,13 @@ if [[ -z "$COMPETITOR" ]]; then
 fi
 
 if [[ -z "${DATAFORSEO_LOGIN:-}" || -z "${DATAFORSEO_PASSWORD:-}" ]]; then
-  echo "ERROR: DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD env vars required" >&2
+  echo "⚠️  No DataForSEO credentials. seo-compete requires DataForSEO for competitor keyword data." >&2
+  echo "   Set DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD to use this script." >&2
+  echo "" >&2
+  echo "   Without DataForSEO, try these manual approaches:" >&2
+  echo "   1. Search: site:competitor.com — see what pages they have" >&2
+  echo "   2. Search: "competitor.com" + "keyword" — find their ranked content" >&2
+  echo "   3. Use free tools like Ubersuggest or search "competitor keyword gap free"" >&2
   exit 1
 fi
 

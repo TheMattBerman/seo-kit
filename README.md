@@ -139,17 +139,75 @@ Repeat forever.
 
 ---
 
-## Cost
+## API Keys and What's Free
 
-| Service | Cost |
-|---------|------|
-| OpenClaw | Free (open source) |
-| Google Search Console | Free |
-| PageSpeed Insights API | Free |
-| DataForSEO | ~$50/month (optional) |
-| **Total** | **$0-50/month** |
+Every script works without paid APIs. Some get better with them. Here's the breakdown:
 
-Compare: Ahrefs ($200+/mo) + Surfer ($89/mo) + Jasper ($80/mo) + SEO freelancer ($2-5K/mo)
+### Free (no API key needed)
+
+| Script | What It Uses |
+|--------|-------------|
+| `seo-monitor` | Google Search Console (OAuth) |
+| `seo-discover` (GSC-only mode) | Google Search Console |
+| `seo-check` | Google Search Console |
+| `seo-interview` | Your brain |
+| `health-speed` | Google PageSpeed Insights API (free, rate-limited) |
+| `health-crawl` | Direct HTTP crawl |
+| `health-images` | Direct HTTP crawl |
+| `link-internal` | Your sitemap + direct crawl |
+| All link scripts (fallback) | Web search queries (manual or via agent) |
+
+### Google Search Console (free, requires OAuth setup)
+
+Required for: `seo-discover`, `seo-monitor`, `seo-compete`
+
+This is where your real ranking data comes from. Not estimates. Your actual positions, clicks, and impressions from Google. Setup takes 5 minutes. See [SETUP.md](./SETUP.md).
+
+### DataForSEO (~$50/month, optional)
+
+Required for full features of: `seo-discover`, `seo-compete`, `link-mine`, `link-mentions`, `link-broken`, `link-prospect`
+
+DataForSEO is the API behind most SEO tools. Direct access costs a fraction of what Ahrefs or Semrush charge. It adds:
+- **Search volumes** for discovered keywords
+- **Keyword expansion** (suggestions + related keywords)
+- **Competitor keyword gaps** (what they rank for, you don't)
+- **SERP data** for link prospecting and mention discovery
+- **Backlinks data** (separate subscription within DataForSEO)
+
+Without it, `seo-discover` still works using GSC data alone (scored by impressions instead of search volume). Link scripts fall back to web search queries you can run manually.
+
+Sign up at [dataforseo.com](https://dataforseo.com). Set `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWORD` in your environment.
+
+### PageSpeed Insights API Key (free, optional)
+
+Recommended for: `health-speed`
+
+Without a key: rate-limited (a few requests per minute). With a free API key: 25,000 queries/day.
+
+Get one at [Google Cloud Console](https://console.cloud.google.com/apis/credentials) and enable the PageSpeed Insights API. Set `PAGESPEED_API_KEY` in your environment.
+
+### What You Actually Need
+
+| Level | APIs | Monthly Cost | What Works |
+|-------|------|-------------|------------|
+| **Starter** | GSC only | $0 | Discovery (GSC mode), monitoring, health checks, internal links |
+| **Full** | GSC + DataForSEO | ~$50 | Everything: volumes, expansion, competitor gaps, SERP-based link prospecting |
+| **Full + Backlinks** | GSC + DataForSEO + Backlinks addon | ~$100 | Everything + competitor backlink mining |
+
+Start at $0. Add DataForSEO when you want search volumes and competitor analysis.
+
+---
+
+## Cost Comparison
+
+| The Old Way | The Agent Way |
+|-------------|--------------|
+| Semrush: $200/mo | DataForSEO: $50/mo (or $0) |
+| Ahrefs: $200/mo | GSC: free |
+| Surfer: $89/mo | PageSpeed API: free |
+| Jasper: $80/mo | OpenClaw: free |
+| SEO freelancer: $5k/mo | SEO Kit: free |
+| **Total: $5,569/mo** | **Total: $0-50/mo** |
 
 ---
 

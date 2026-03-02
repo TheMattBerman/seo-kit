@@ -59,12 +59,16 @@ if [[ -z "$SITE" ]]; then
   exit 1
 fi
 
-if [[ -z "${DATAFORSEO_LOGIN:-}" || -z "${DATAFORSEO_PASSWORD:-}" ]]; then
-  echo "ERROR: DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD env vars required" >&2
-  exit 1
+HAS_DFS=false
+if [[ -n "${DATAFORSEO_LOGIN:-}" && -n "${DATAFORSEO_PASSWORD:-}" ]]; then
+  HAS_DFS=true
+  DFS_AUTH="-u ${DATAFORSEO_LOGIN}:${DATAFORSEO_PASSWORD}"
+else
+  echo "⚠️  No DataForSEO credentials. Running in GSC-only mode (no search volumes or keyword expansion)." >&2
+  echo "   Set DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD for full features." >&2
+  echo "" >&2
+  DFS_AUTH=""
 fi
-
-DFS_AUTH="-u ${DATAFORSEO_LOGIN}:${DATAFORSEO_PASSWORD}"
 
 log() { [[ "$JSON_MODE" == false ]] && echo "→ $*" >&2 || true; }
 err() { echo "ERROR: $*" >&2; }
@@ -148,79 +152,76 @@ done <<< "$TOP_QUERIES"
 # Build seeds JSON array (dedupe, limit to 10)
 SEEDS_JSON=$(printf '%s\n' "${SEED_LIST[@]}" | head -10 | jq -Rn '[inputs]')
 
-# --- Step 3: DataForSEO keyword suggestions ---
-log "Expanding keywords via DataForSEO..."
+# --- Steps 3-6: DataForSEO keyword expansion + volumes ---
+if [[ "$HAS_DFS" == true ]]; then
+  log "Expanding keywords via DataForSEO..."
 
-DFS_SUGGESTIONS=$(curl -s -X POST "$DFS_BASE/v3/dataforseo_labs/google/keyword_suggestions/live" \
-  $DFS_AUTH \
-  -H "Content-Type: application/json" \
-  -d "[{
-    \"keyword\": $(echo "$SEEDS_JSON" | jq '.[0]'),
-    \"language_code\": \"en\",
-    \"location_code\": 2840,
-    \"limit\": 50,
-    \"include_serp_info\": false,
-    \"include_seed_keyword\": true
-  }]")
+  DFS_SUGGESTIONS=$(curl -s -X POST "$DFS_BASE/v3/dataforseo_labs/google/keyword_suggestions/live" \
+    $DFS_AUTH \
+    -H "Content-Type: application/json" \
+    -d "[{
+      \"keyword\": $(echo "$SEEDS_JSON" | jq '.[0]'),
+      \"language_code\": \"en\",
+      \"location_code\": 2840,
+      \"limit\": 50,
+      \"include_serp_info\": false,
+      \"include_seed_keyword\": true
+    }]")
 
-HTTP_STATUS=$(echo "$DFS_SUGGESTIONS" | jq -r '.status_code // 0')
-if [[ "$HTTP_STATUS" != "20000" && "$HTTP_STATUS" != "0" ]]; then
-  log "DataForSEO suggestions warning: status $HTTP_STATUS"
-fi
+  SUGGESTED_KEYWORDS=$(echo "$DFS_SUGGESTIONS" | jq -r \
+    '.tasks[0].result[0].items // [] | map(.keyword) | .[]' 2>/dev/null | head -50 || echo "")
 
-SUGGESTED_KEYWORDS=$(echo "$DFS_SUGGESTIONS" | jq -r \
-  '.tasks[0].result[0].items // [] | map(.keyword) | .[]' 2>/dev/null | head -50 || echo "")
-
-# --- Step 4: DataForSEO related keywords ---
-log "Finding related keywords..."
-
-RELATED_PAYLOAD=$(echo "$SEEDS_JSON" | jq '{
-  "keywords": .,
-  "language_code": "en",
-  "location_code": 2840
-}')
-
-DFS_RELATED=$(curl -s -X POST "$DFS_BASE/v3/keywords_data/google_ads/keywords_for_keywords/live" \
-  $DFS_AUTH \
-  -H "Content-Type: application/json" \
-  -d "[$(echo "$RELATED_PAYLOAD")]")
-
-RELATED_KEYWORDS=$(echo "$DFS_RELATED" | jq -r \
-  '.tasks[0].result // [] | map(.keyword) | .[]' 2>/dev/null | head -50 || echo "")
-
-# --- Step 5: Combine all candidate keywords ---
-ALL_CANDIDATES=$(printf '%s\n' "$SUGGESTED_KEYWORDS" "$RELATED_KEYWORDS" | \
-  sort -u | grep -v '^$' | head -100)
-
-CANDIDATES_JSON=$(echo "$ALL_CANDIDATES" | jq -Rn '[inputs]')
-CANDIDATE_COUNT=$(echo "$CANDIDATES_JSON" | jq 'length')
-log "Got $CANDIDATE_COUNT candidate keywords for volume check..."
-
-# --- Step 6: Get search volumes ---
-if [[ "$CANDIDATE_COUNT" -gt 0 ]]; then
-  log "Fetching search volumes..."
-
-  # DataForSEO limits to 1000 keywords per request
-  VOLUME_PAYLOAD=$(echo "$CANDIDATES_JSON" | jq '{
+  log "Finding related keywords..."
+  RELATED_PAYLOAD=$(echo "$SEEDS_JSON" | jq '{
     "keywords": .,
     "language_code": "en",
     "location_code": 2840
   }')
 
-  DFS_VOLUME=$(curl -s -X POST "$DFS_BASE/v3/keywords_data/google_ads/search_volume/live" \
+  DFS_RELATED=$(curl -s -X POST "$DFS_BASE/v3/keywords_data/google_ads/keywords_for_keywords/live" \
     $DFS_AUTH \
     -H "Content-Type: application/json" \
-    -d "[$(echo "$VOLUME_PAYLOAD")]")
+    -d "[$(echo "$RELATED_PAYLOAD")]")
 
-  VOLUME_DATA=$(echo "$DFS_VOLUME" | jq \
-    '.tasks[0].result // [] | map({
-      keyword: .keyword,
-      search_volume: (.search_volume // 0),
-      competition: (.competition // 0),
-      competition_index: (.competition_index // 0),
-      cpc: (.cpc // 0)
-    })' 2>/dev/null || echo "[]")
+  RELATED_KEYWORDS=$(echo "$DFS_RELATED" | jq -r \
+    '.tasks[0].result // [] | map(.keyword) | .[]' 2>/dev/null | head -50 || echo "")
+
+  ALL_CANDIDATES=$(printf '%s\n' "$SUGGESTED_KEYWORDS" "$RELATED_KEYWORDS" | \
+    sort -u | grep -v '^$' | head -100)
+
+  CANDIDATES_JSON=$(echo "$ALL_CANDIDATES" | jq -Rn '[inputs]')
+  CANDIDATE_COUNT=$(echo "$CANDIDATES_JSON" | jq 'length')
+  log "Got $CANDIDATE_COUNT candidate keywords for volume check..."
+
+  if [[ "$CANDIDATE_COUNT" -gt 0 ]]; then
+    log "Fetching search volumes..."
+    VOLUME_PAYLOAD=$(echo "$CANDIDATES_JSON" | jq '{
+      "keywords": .,
+      "language_code": "en",
+      "location_code": 2840
+    }')
+
+    DFS_VOLUME=$(curl -s -X POST "$DFS_BASE/v3/keywords_data/google_ads/search_volume/live" \
+      $DFS_AUTH \
+      -H "Content-Type: application/json" \
+      -d "[$(echo "$VOLUME_PAYLOAD")]")
+
+    VOLUME_DATA=$(echo "$DFS_VOLUME" | jq \
+      '.tasks[0].result // [] | map({
+        keyword: .keyword,
+        search_volume: (.search_volume // 0),
+        competition: (.competition // 0),
+        competition_index: (.competition_index // 0),
+        cpc: (.cpc // 0)
+      })' 2>/dev/null || echo "[]")
+  else
+    VOLUME_DATA="[]"
+  fi
+
 else
+  # GSC-only mode: no keyword expansion, score by impressions
+  log "Running in GSC-only mode (no DataForSEO)..."
+  log "Strike zone keywords scored by GSC impressions instead of search volume."
   VOLUME_DATA="[]"
 fi
 
