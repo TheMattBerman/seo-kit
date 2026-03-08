@@ -6,14 +6,27 @@ You need OAuth2 credentials to access the GSC API.
 
 ### Option A: Use gog CLI (Recommended if you have it)
 
-If you have [gog](https://github.com/doitadrian/gog) installed:
+If you already have `gog` installed, use it for the Search Console OAuth flow.
+
+If you need to install it first, see the gog docs: [gogcli.sh](https://gogcli.sh).
+
+`gog` is Peter Steinberger's Google Workspace CLI and works well for managing Google auth from the terminal.
+
+Set it up like this:
 
 ```bash
-# gog handles OAuth automatically
-gog auth login
+# 1) Save your Google OAuth client JSON somewhere local
+# 2) Register it with gog
+gog auth credentials ~/.config/gsc-credentials.json
+
+# 3) Add your Google account and grant access
+gog auth add you@gmail.com --services webmasters
+
+# 4) Confirm the account is available
+gog auth list
 ```
 
-The token file lands at `~/.config/google-analytics-token.json` and the SEO scripts will pick it up.
+After that, `gog` manages the OAuth flow for you and the SEO scripts can use the authenticated account for Search Console access.
 
 ### Option B: Manual OAuth Setup
 
