@@ -6,7 +6,13 @@ You need OAuth2 credentials to access the GSC API.
 
 ### Option A: Use gog CLI (Recommended if you have it)
 
-If you have [gog](https://gogcli.sh) installed — Peter Steinberger's Google Workspace CLI that ships with the OpenClaw ecosystem — set up OAuth like this:
+If you already have `gog` installed, use it for the Search Console OAuth flow.
+
+If you need to install it first, see the gog docs: [gogcli.sh](https://gogcli.sh).
+
+`gog` is Peter Steinberger's Google Workspace CLI and works well for managing Google auth from the terminal.
+
+Set it up like this:
 
 ```bash
 # 1) Save your Google OAuth client JSON somewhere local
